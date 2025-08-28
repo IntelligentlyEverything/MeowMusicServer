@@ -3,10 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // Api Response.
@@ -14,30 +13,33 @@ type Response struct {
 	Code int         `json:"code"`
 	Msg  string      `json:"msg"`
 	Data interface{} `json:"data"`
+	Tips string      `json:"tips"`
+	Ip   string      `json:"ip"`
 }
 
-// Song represents a song information.
+// API Song response.
 type Song struct {
-	Num              int    `json:"num"`
-	Song             string `json:"song"`
-	Singer           string `json:"singer"`
-	Cover            string `json:"cover"`
-	Url_audition     string `json:"url_audition"`
-	Url_standard     string `json:"url_standard"`
-	Url_highquality  string `json:"url_highquality"`
-	Url_superquality string `json:"url_superquality"`
-	Url_lossless     string `json:"url_lossless"`
-	Url_hires        string `json:"url_hires"`
-	Url_lyric        string `json:"url_lyric"`
+	Num      int         `json:"num"`
+	Song     string      `json:"song"`
+	Singer   string      `json:"singer"`
+	Album    string      `json:"album"`
+	Cover    string      `json:"cover"`
+	MusicURL interface{} `json:"music_url"`
+	Lyric    interface{} `json:"lyric"`
 }
 
-// API Song list response.
-type SongList struct {
-	Num    int    `json:"num"`
-	Song   string `json:"song"`
-	Singer string `json:"singer"`
-	Album  string `json:"album"`
-	Pay    int    `json:"pay"`
+type MusicURL struct {
+	Audition     string `json:"audition"`
+	Standard     string `json:"standard"`
+	Highquality  string `json:"highquality"`
+	Superquality string `json:"superquality"`
+	Lossless     string `json:"lossless"`
+	Hires        string `json:"hires"`
+}
+
+type Lyric struct {
+	Mrc string `json:"mrc"`
+	Lrc string `json:"lrc"`
 }
 
 // apiHandler is the handler function for API requests.
@@ -49,137 +51,39 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	msg := queryParams.Get("msg")
 	//num := queryParams.Get("num")
 	//quality := queryParams.Get("quality")
+	ip, err := IPhandler(r)
+	if err != nil {
+		ip = "0.0.0.0"
+	}
 	if msg == "" {
 		response := Response{
-			Code: 0,
-			Msg:  "API Operation successful.",
+			Code: 1,
+			Msg:  "API Operation successful but no request provided.",
 			Data: []interface{}{},
+			Tips: "Provide by " + os.Getenv("WEBSITE_NAME"),
+			Ip:   ip,
 		}
 		json.NewEncoder(w).Encode(response)
-	} else {
-		songs_list := pollApis(msg)
-		if songs_list != nil {
-			response := Response{
-				Code: 0,
-				Msg:  "API Operation successful.",
-				Data: songs_list,
-			}
-			json.NewEncoder(w).Encode(response)
-		} else {
-			response := Response{
-				Code: 1,
-				Msg:  "No resources available.",
-				Data: []interface{}{},
-			}
-			json.NewEncoder(w).Encode(response)
-		}
 	}
 }
 
-// Aggregation API: Get API on other servers and send API response to apiHandler.
-//func aggregationAPI(w http.ResponseWriter, r *http.Request) {}
+// API response.
 
-// getApiConfig gets the API configuration from environment variables.
-func getApiConfig() ([]string, []string) {
-	urls := make([]string, 10)
-	types := make([]string, 10)
-
-	for i := 0; i < 10; i++ {
-		urlKey := fmt.Sprintf("API_URL_%d", i)
-		typeKey := fmt.Sprintf("API_TYPE_%d", i)
-		if i == 0 {
-			urlKey = "API_URL"
-			typeKey = "API_TYPE"
-		}
-		urls[i] = os.Getenv(urlKey)
-		types[i] = os.Getenv(typeKey)
+// Processing requests.
+func IPhandler(r *http.Request) (string, error) {
+	ip := r.Header.Get("X-Real-IP")
+	if ip != "" {
+		return ip, nil
+	}
+	ip = r.Header.Get("X-Forwarded-For")
+	if ip != "" {
+		ips := strings.Split(ip, ",")
+		return strings.TrimSpace(ips[0]), nil
+	}
+	ip = r.RemoteAddr
+	if ip != "" {
+		return strings.Split(ip, ":")[0], nil
 	}
 
-	return urls, types
-}
-
-// pollApis polls APIs and fetches data from them.
-func pollApis(msg string) []SongList {
-	urls, types := getApiConfig()
-	var songs []SongList
-	var num int
-
-	for i, url := range urls {
-		if url == "" {
-			//log.Printf("Skipping API %d as URL is not provided", i)
-			continue
-		}
-
-		apiType := types[i]
-		if apiType == "" || apiType == "NETEASE" || apiType == "QQ" || apiType == "KUWO" || apiType == "KUGOU" || apiType == "XIAMI" {
-			//log.Printf("Skipping API %d as Type is not provided or not supported", i)
-			continue
-		} else if apiType == "YAOHU" {
-			res, err := fetchDataFromYaohuApi(url, msg)
-			if err != nil {
-				log.Printf("Error fetching data from API %d (%s): %v", i, apiType, err)
-				continue
-			}
-			for _, yaoHuSong := range res {
-				pay := 0
-				if yaoHuSong.Pay == "[收费]" {
-					pay = 1
-				}
-				song := SongList{
-					Num:    num,
-					Song:   yaoHuSong.Name,
-					Singer: yaoHuSong.Singer,
-					Album:  yaoHuSong.Album,
-					Pay:    pay,
-				}
-				songs = append(songs, song)
-				num++
-			}
-		}
-	}
-	return songs
-}
-
-// YaoHuSong represents a song.
-type YaoHuSongList struct {
-	N      int    `json:"n"`
-	Name   string `json:"name"`
-	Singer string `json:"singer"`
-	Album  string `json:"album"`
-	Pay    string `json:"pay"`
-}
-
-// YaoHuResponseData represents the response data.
-type YaoHuResponseData struct {
-	Code int `json:"code"`
-	Data struct {
-		Songs []YaoHuSongList `json:"songs"`
-	} `json:"data"`
-}
-
-// fetchDataFromYaohuApi is the response from api.yaohud.cn.
-func fetchDataFromYaohuApi(apiURL string, songName string) ([]YaoHuSongList, error) {
-	url := fmt.Sprintf("%s%s", apiURL, songName)
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("request failed, status: %d", resp.StatusCode)
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	var responseData YaoHuResponseData
-	err = json.Unmarshal(body, &responseData)
-	if err != nil {
-		return nil, err
-	}
-	if responseData.Code != 200 || len(responseData.Data.Songs) == 0 {
-		return nil, fmt.Errorf("invalid response: %d", responseData.Code)
-	}
-	//log.Printf("Successfully fetched data from API: %+v", responseData.Data.Songs)
-	return responseData.Data.Songs, nil
+	return "", fmt.Errorf("unable to obtain IP address information")
 }

@@ -1,0 +1,32 @@
+{
+    "api": [
+        {
+            "api_url": "",
+            "api_type": ""
+        },
+        {
+            "api_url": "",
+            "api_type": ""
+        }
+    ],
+    "other": [
+        {
+            "song_name": "",
+            "singer": "",
+            "album": "",
+            "cover": "",
+            "music_url": {
+                "audition": "",
+                "standard": "",
+                "highquality": "",
+                "superquality": "",
+                "lossless": "",
+                "hires": ""
+            },
+            "lyric_url": {
+                "mrc": "",
+                "lrc": ""
+            }
+        }
+    ]
+}
