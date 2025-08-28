@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-// ListFiles 函数：遍历指定目录中的所有文件，并返回文件路径的切片
+// ListFiles function: Traverse all files in the specified directory and return a slice of the file path
 func ListFiles(dir string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -21,7 +22,7 @@ func ListFiles(dir string) ([]string, error) {
 	return files, err
 }
 
-// GetFileContent 函数：读取指定文件的内容并返回
+// Get Content function: Read the content of a specified file and return it
 func GetFileContent(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -29,14 +30,14 @@ func GetFileContent(filePath string) ([]byte, error) {
 	}
 	defer file.Close()
 
-	// 获取文件大小
+	// Get File Size
 	fileInfo, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
 	fileSize := fileInfo.Size()
 
-	// 读取文件内容
+	// Read File Content
 	fileContent := make([]byte, fileSize)
 	_, err = file.Read(fileContent)
 	if err != nil {
@@ -46,27 +47,31 @@ func GetFileContent(filePath string) ([]byte, error) {
 	return fileContent, nil
 }
 
-// fileHandler 函数：处理文件请求
+// fileHandler function: Handle file requests
 func fileHandler(w http.ResponseWriter, r *http.Request) {
-	queryParams := r.URL.Query()
-	fileName := queryParams.Get("file")
-	if fileName == "" {
+	// Obtain the path of the request
+	filePath := r.URL.Path
+
+	// Remove the prefix '/file/'
+	if strings.HasPrefix(filePath, "/file/") {
+		filePath = filePath[len("/file/"):]
+	} else {
 		NotFoundHandler(w, r)
 		return
 	}
 
-	// 构造完整的文件路径
-	filePath := filepath.Join("./music-uploads", fileName)
+	// Construct the complete file path
+	fullFilePath := filepath.Join("./music-uploads", filePath)
 
-	// 获取文件内容
-	fileContent, err := GetFileContent(filePath)
+	// Get file content
+	fileContent, err := GetFileContent(fullFilePath)
 	if err != nil {
 		NotFoundHandler(w, r)
 		return
 	}
 
-	// 设置适当的Content-Type根据文件扩展名
-	ext := filepath.Ext(fileName)
+	// Set appropriate Content-Type based on file extension
+	ext := filepath.Ext(filePath)
 	switch ext {
 	case ".mp3":
 		w.Header().Set("Content-Type", "audio/mpeg")
@@ -83,10 +88,10 @@ func fileHandler(w http.ResponseWriter, r *http.Request) {
 	case ".amr":
 		w.Header().Set("Content-Type", "audio/amr")
 	default:
-		http.Error(w, "Unsupported file type", http.StatusUnsupportedMediaType)
+		w.Header().Set("Content-Type", "application/octet-stream")
 		return
 	}
 
-	// 写入文件内容到响应
+	// Write file content to response
 	w.Write(fileContent)
 }
