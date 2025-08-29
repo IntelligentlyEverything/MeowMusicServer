@@ -87,6 +87,18 @@ func fileHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "audio/mp4")
 	case ".amr":
 		w.Header().Set("Content-Type", "audio/amr")
+	case ".jpg", ".jpeg":
+		w.Header().Set("Content-Type", "image/jpeg")
+	case ".png":
+		w.Header().Set("Content-Type", "image/png")
+	case ".gif":
+		w.Header().Set("Content-Type", "image/gif")
+	case ".bmp":
+		w.Header().Set("Content-Type", "image/bmp")
+	case ".svg":
+		w.Header().Set("Content-Type", "image/svg+xml")
+	case ".webp":
+		w.Header().Set("Content-Type", "image/webp")
 	default:
 		w.Header().Set("Content-Type", "application/octet-stream")
 		return
