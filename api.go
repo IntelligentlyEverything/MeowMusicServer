@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -272,8 +273,13 @@ func scanArtistSongFolders(dirPath string) []struct {
 			parts := strings.Split(entry.Name(), "-")
 			if len(parts) >= 2 {
 				artistName := strings.TrimSpace(parts[0])
-				songName := strings.TrimSpace(strings.Join(parts[1:], "-"))
-				albumName := strings.TrimSpace(strings.Join(parts[2:], "@"))
+				songAndAlbum := strings.Join(parts[1:], "-")
+				songAlbumParts := strings.Split(songAndAlbum, "@")
+				songName := strings.TrimSpace(songAlbumParts[0])
+				var albumName string
+				if len(songAlbumParts) > 1 {
+					albumName = strings.TrimSpace(songAlbumParts[1])
+				}
 				artistSongFolders = append(artistSongFolders, struct {
 					artistName string
 					songName   string
@@ -289,8 +295,8 @@ func scanArtistSongFolders(dirPath string) []struct {
 // Helper function to get the cover URL
 func getCoverURL(artistName, songName, albumName string) string {
 	homeURL := os.Getenv("HOME_URL")
-	coverPath := fmt.Sprintf("/file/%s-%s@%s/cover.png", artistName, songName, albumName)
-	fullCoverURL := filepath.Join(homeURL, coverPath)
+	coverPath := fmt.Sprintf("/file/%s-%s@%s/cover.png", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
+	fullCoverURL := fmt.Sprintf("%s%s", homeURL, coverPath)
 	return checkURL(fullCoverURL)
 }
 
@@ -310,10 +316,10 @@ func getMusicURL(artistName, songName, albumName string) MusicURL {
 // Helper function to get the Lyric URL
 func getLyricURL(artistName, songName, albumName string) Lyric {
 	homeURL := os.Getenv("HOME_URL")
-	mrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.mrc", artistName, songName, albumName)
-	lrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.lrc", artistName, songName, albumName)
-	mrcURL := filepath.Join(homeURL, mrcPath)
-	lrcURL := filepath.Join(homeURL, lrcPath)
+	mrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.mrc", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
+	lrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.lrc", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
+	mrcURL := fmt.Sprintf("%s%s", homeURL, mrcPath)
+	lrcURL := fmt.Sprintf("%s%s", homeURL, lrcPath)
 	return Lyric{
 		Mrc: checkURL(mrcURL),
 		Lrc: checkURL(lrcURL),
@@ -323,8 +329,8 @@ func getLyricURL(artistName, songName, albumName string) Lyric {
 // Helper function to get the music file URL based on quality and format
 func getMusicFileURL(artistName, songName, albumName, quality, format string) string {
 	homeURL := os.Getenv("HOME_URL")
-	musicPath := fmt.Sprintf("/file/%s-%s@%s/%s%s", artistName, songName, albumName, quality, format)
-	fullMusicURL := filepath.Join(homeURL, musicPath)
+	musicPath := fmt.Sprintf("/file/%s-%s@%s/%s%s", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName), url.PathEscape(quality), url.PathEscape(format))
+	fullMusicURL := fmt.Sprintf("%s%s", homeURL, musicPath)
 	return checkURL(fullMusicURL)
 }
 
