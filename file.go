@@ -101,7 +101,6 @@ func fileHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/webp")
 	default:
 		w.Header().Set("Content-Type", "application/octet-stream")
-		return
 	}
 
 	// Write file content to response
