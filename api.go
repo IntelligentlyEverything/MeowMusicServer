@@ -129,6 +129,7 @@ type OtherSong struct {
 	MusicURL MusicURL `json:"music_url"`
 	LyricURL Lyric    `json:"lyric_url"`
 }
+
 type Metadata struct {
 	API   []API       `json:"api"`
 	Other []OtherSong `json:"other"`
@@ -170,7 +171,7 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 		}
 
 		// Check if the song matches the msg and num
-		if strings.Contains(song.Song, msg) {
+		if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
 			if num == 0 || song.Num == num {
 				filteredSongs = append(filteredSongs, song)
 			}
@@ -191,10 +192,40 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 		}
 
 		// Check if the song matches the msg and num
-		if strings.Contains(song.Song, msg) {
+		if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
 			if num == 0 || song.Num == num {
 				filteredSongs = append(filteredSongs, song)
 			}
+		}
+	}
+
+	// Handling API requests from the same system
+	for _, api := range metadata.API {
+		if api.APIType == "" {
+			// Same system API request
+			resp, err := http.Get(api.APIURL)
+			if err != nil {
+				fmt.Println("Error fetching data from internal API: ", err)
+				continue // Continue processing the next API, if there are any errors
+			}
+			defer resp.Body.Close()
+
+			// Decode JSON response
+			var internalSongs []Song
+			err = json.NewDecoder(resp.Body).Decode(&internalSongs)
+			if err != nil {
+				fmt.Println("Error decoding internal API response: ", err)
+				continue // Continue processing the next API, if there are any errors
+			}
+
+			// Modify the num field for internal songs
+			for i := range internalSongs {
+				songCounter++
+				internalSongs[i].Num = songCounter
+			}
+
+			// Append internal songs to filteredSongs
+			filteredSongs = append(filteredSongs, internalSongs...)
 		}
 	}
 
@@ -288,7 +319,7 @@ func getLyricURL(artistName, songName string) Lyric {
 // Helper function to get the music file URL based on quality and format
 func getMusicFileURL(artistName, songName, quality, format string) string {
 	homeURL := os.Getenv("HOME_URL")
-	musicPath := fmt.Sprintf("/file/%s - %s/music_%s%s", artistName, songName, quality, format)
+	musicPath := fmt.Sprintf("/file/%s - %s/%s%s", artistName, songName, quality, format)
 	fullMusicURL := filepath.Join(homeURL, musicPath)
 	return fullMusicURL
 }
@@ -314,6 +345,10 @@ func readMetadataFile(filePath string) (*Metadata, error) {
 // Convert the song information in the Metadata structure into a Song array
 func getSongArray(metadata *Metadata) []OtherSong {
 	return metadata.Other
+}
+
+func getApiArray(metadata *Metadata) []API {
+	return metadata.API
 }
 
 // Processing requests.
