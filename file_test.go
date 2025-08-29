@@ -64,7 +64,7 @@ func TestGetFileContent(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	testFilePath := filepath.Join(tempDir, "testfile.txt")
-	if err := ioutil.WriteFile(testFilePath, []byte("hello world"), 0666); err != nil {
+	if err := ioutil.WriteFile(testFilePath, []byte("100% Lovely"), 0666); err != nil {
 		t.Fatalf("Unable to create file: %s", err)
 	}
 
