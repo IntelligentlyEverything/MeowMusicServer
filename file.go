@@ -99,6 +99,12 @@ func fileHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 	case ".webp":
 		w.Header().Set("Content-Type", "image/webp")
+	case ".json":
+		if filePath == "metadata.json" {
+			NotFoundHandler(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 	default:
 		w.Header().Set("Content-Type", "application/octet-stream")
 	}

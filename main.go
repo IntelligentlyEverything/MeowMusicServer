@@ -26,7 +26,7 @@ func main() {
 
 	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/api", apiHandler)
-	http.HandleFunc("/file", fileHandler)
+	http.HandleFunc("/file/", fileHandler)
 	fmt.Printf("%s Started.\n喵波音律-音乐家园QQ交流群:865754861\n", TAG)
 	fmt.Printf("Starting music server at port %s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
