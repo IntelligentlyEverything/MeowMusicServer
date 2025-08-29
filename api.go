@@ -164,10 +164,10 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 			Num:      songCounter,
 			Song:     artistSongFolder.songName,
 			Singer:   artistSongFolder.artistName,
-			Album:    "", // Assuming no album information in folder names
-			Cover:    getCoverURL(artistSongFolder.artistName, artistSongFolder.songName),
-			MusicURL: getMusicURL(artistSongFolder.artistName, artistSongFolder.songName),
-			Lyric:    getLyricURL(artistSongFolder.artistName, artistSongFolder.songName),
+			Album:    artistSongFolder.albumName,
+			Cover:    getCoverURL(artistSongFolder.artistName, artistSongFolder.songName, artistSongFolder.albumName),
+			MusicURL: getMusicURL(artistSongFolder.artistName, artistSongFolder.songName, artistSongFolder.albumName),
+			Lyric:    getLyricURL(artistSongFolder.artistName, artistSongFolder.songName, artistSongFolder.albumName),
 		}
 
 		// Check if the song matches the msg and num
@@ -242,10 +242,12 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 func scanArtistSongFolders(dirPath string) []struct {
 	artistName string
 	songName   string
+	albumName  string
 } {
 	var artistSongFolders []struct {
 		artistName string
 		songName   string
+		albumName  string
 	}
 
 	// Open the directory
@@ -271,10 +273,12 @@ func scanArtistSongFolders(dirPath string) []struct {
 			if len(parts) >= 2 {
 				artistName := strings.TrimSpace(parts[0])
 				songName := strings.TrimSpace(strings.Join(parts[1:], "-"))
+				albumName := strings.TrimSpace(strings.Join(parts[2:], "@"))
 				artistSongFolders = append(artistSongFolders, struct {
 					artistName string
 					songName   string
-				}{artistName, songName})
+					albumName  string
+				}{artistName, songName, albumName})
 			}
 		}
 	}
@@ -283,45 +287,45 @@ func scanArtistSongFolders(dirPath string) []struct {
 }
 
 // Helper function to get the cover URL
-func getCoverURL(artistName, songName string) string {
+func getCoverURL(artistName, songName, albumName string) string {
 	homeURL := os.Getenv("HOME_URL")
-	coverPath := fmt.Sprintf("/file/%s - %s/cover.png", artistName, songName)
+	coverPath := fmt.Sprintf("/file/%s-%s@%s/cover.png", artistName, songName, albumName)
 	fullCoverURL := filepath.Join(homeURL, coverPath)
-	return fullCoverURL
+	return checkURL(fullCoverURL)
 }
 
 // Helper function to get the MusicURL
-func getMusicURL(artistName, songName string) MusicURL {
+func getMusicURL(artistName, songName, albumName string) MusicURL {
 	musicURL := MusicURL{
-		Audition:     getMusicFileURL(artistName, songName, "audition", ".mp3"),
-		Standard:     getMusicFileURL(artistName, songName, "standard", ".mp3"),
-		Highquality:  getMusicFileURL(artistName, songName, "highquality", ".mp3"),
-		Superquality: getMusicFileURL(artistName, songName, "superquality", ".mp3"),
-		Lossless:     getMusicFileURL(artistName, songName, "lossless", ".flac"),
-		Hires:        getMusicFileURL(artistName, songName, "hires", ".flac"),
+		Audition:     getMusicFileURL(artistName, songName, albumName, "audition", ".mp3"),
+		Standard:     getMusicFileURL(artistName, songName, albumName, "standard", ".mp3"),
+		Highquality:  getMusicFileURL(artistName, songName, albumName, "highquality", ".mp3"),
+		Superquality: getMusicFileURL(artistName, songName, albumName, "superquality", ".mp3"),
+		Lossless:     getMusicFileURL(artistName, songName, albumName, "lossless", ".flac"),
+		Hires:        getMusicFileURL(artistName, songName, albumName, "hires", ".flac"),
 	}
 	return musicURL
 }
 
 // Helper function to get the Lyric URL
-func getLyricURL(artistName, songName string) Lyric {
+func getLyricURL(artistName, songName, albumName string) Lyric {
 	homeURL := os.Getenv("HOME_URL")
-	mrcPath := fmt.Sprintf("/file/%s - %s/lyric.mrc", artistName, songName)
-	lrcPath := fmt.Sprintf("/file/%s - %s/lyric.lrc", artistName, songName)
+	mrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.mrc", artistName, songName, albumName)
+	lrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.lrc", artistName, songName, albumName)
 	mrcURL := filepath.Join(homeURL, mrcPath)
 	lrcURL := filepath.Join(homeURL, lrcPath)
 	return Lyric{
-		Mrc: mrcURL,
-		Lrc: lrcURL,
+		Mrc: checkURL(mrcURL),
+		Lrc: checkURL(lrcURL),
 	}
 }
 
 // Helper function to get the music file URL based on quality and format
-func getMusicFileURL(artistName, songName, quality, format string) string {
+func getMusicFileURL(artistName, songName, albumName, quality, format string) string {
 	homeURL := os.Getenv("HOME_URL")
-	musicPath := fmt.Sprintf("/file/%s - %s/%s%s", artistName, songName, quality, format)
+	musicPath := fmt.Sprintf("/file/%s-%s@%s/%s%s", artistName, songName, albumName, quality, format)
 	fullMusicURL := filepath.Join(homeURL, musicPath)
-	return fullMusicURL
+	return checkURL(fullMusicURL)
 }
 
 // Read the metadata.json file and parse it into a metadata structure
@@ -347,8 +351,19 @@ func getSongArray(metadata *Metadata) []OtherSong {
 	return metadata.Other
 }
 
-func getApiArray(metadata *Metadata) []API {
-	return metadata.API
+// Helper function to check if a URL is valid
+func checkURL(url string) string {
+	resp, err := http.Get(url)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return ""
+	}
+
+	return url
 }
 
 // Processing requests.
