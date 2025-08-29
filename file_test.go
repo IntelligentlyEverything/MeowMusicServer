@@ -85,14 +85,17 @@ func TestGetFileContent(t *testing.T) {
 
 // TestFileHandlerAudio Test fileHandler function for audio files
 func TestFileHandlerAudio(t *testing.T) {
-	// Create temporary directories and files
-	tempDir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		t.Fatalf("Cannot create temporary directory: %s", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up
+	// Define the base directory for music uploads
+	baseDir := "./music-uploads"
 
-	testFilePath := filepath.Join(tempDir, "testfile.mp3")
+	// Create the base directory if it doesn't exist
+	if err := os.MkdirAll(baseDir, 0777); err != nil {
+		t.Fatalf("Cannot create base directory: %s", err)
+	}
+	defer os.RemoveAll(baseDir) // Clean up
+
+	// Create the test file in the base directory
+	testFilePath := filepath.Join(baseDir, "testfile.mp3")
 	if err := ioutil.WriteFile(testFilePath, []byte("binary audio data"), 0666); err != nil {
 		t.Fatalf("Cannot create file: %s", err)
 	}
@@ -129,14 +132,17 @@ func TestFileHandlerAudio(t *testing.T) {
 
 // TestFileHandlerImage Test fileHandler function for image files
 func TestFileHandlerImage(t *testing.T) {
-	// Create temporary directories and files
-	tempDir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		t.Fatalf("Cannot create temporary directory: %s", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up
+	// Define the base directory for music uploads
+	baseDir := "./music-uploads"
 
-	testFilePath := filepath.Join(tempDir, "testfile.jpg")
+	// Create the base directory if it doesn't exist
+	if err := os.MkdirAll(baseDir, 0777); err != nil {
+		t.Fatalf("Cannot create base directory: %s", err)
+	}
+	defer os.RemoveAll(baseDir) // Clean up
+
+	// Create the test file in the base directory
+	testFilePath := filepath.Join(baseDir, "testfile.jpg")
 	if err := ioutil.WriteFile(testFilePath, []byte("binary image data"), 0666); err != nil {
 		t.Fatalf("Cannot create file: %s", err)
 	}
@@ -173,12 +179,14 @@ func TestFileHandlerImage(t *testing.T) {
 
 // TestFileHandlerNotFound Test fileHandler function for nonexistent files
 func TestFileHandlerNotFound(t *testing.T) {
-	// Create temporary directories and files
-	tempDir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		t.Fatalf("Cannot create temporary directory: %s", err)
+	// Define the base directory for music uploads
+	baseDir := "./music-uploads"
+
+	// Create the base directory if it doesn't exist
+	if err := os.MkdirAll(baseDir, 0777); err != nil {
+		t.Fatalf("Cannot create base directory: %s", err)
 	}
-	defer os.RemoveAll(tempDir) // Clean up
+	defer os.RemoveAll(baseDir) // Clean up
 
 	// Set HTTP request
 	req, err := http.NewRequest("GET", "/file/nonexistentfile.mp3", nil)
@@ -188,7 +196,7 @@ func TestFileHandlerNotFound(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(fileHandler)
 
-	// executive request
+	// Execute request
 	handler.ServeHTTP(rr, req)
 
 	// Check response status code
@@ -199,14 +207,17 @@ func TestFileHandlerNotFound(t *testing.T) {
 
 // TestFileHandlerDefaultContentType Test fileHandler function for default content type
 func TestFileHandlerDefaultContentType(t *testing.T) {
-	// Create temporary directories and files
-	tempDir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		t.Fatalf("Unable to create temporary directory: %s", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up
+	// Define the base directory for music uploads
+	baseDir := "./music-uploads"
 
-	testFilePath := filepath.Join(tempDir, "testfile.txt")
+	// Create the base directory if it doesn't exist
+	if err := os.MkdirAll(baseDir, 0777); err != nil {
+		t.Fatalf("Unable to create base directory: %s", err)
+	}
+	defer os.RemoveAll(baseDir) // Clean up
+
+	// Create the test file in the base directory
+	testFilePath := filepath.Join(baseDir, "testfile.txt")
 	if err := ioutil.WriteFile(testFilePath, []byte("text data"), 0666); err != nil {
 		t.Fatalf("Cannot create file: %s", err)
 	}
