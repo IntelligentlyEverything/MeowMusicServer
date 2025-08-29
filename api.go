@@ -295,9 +295,14 @@ func scanArtistSongFolders(dirPath string) []struct {
 // Helper function to get the cover URL
 func getCoverURL(artistName, songName, albumName string) string {
 	homeURL := os.Getenv("HOME_URL")
+	PORT := os.Getenv("PORT")
 	coverPath := fmt.Sprintf("/file/%s-%s@%s/cover.png", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
 	fullCoverURL := fmt.Sprintf("%s%s", homeURL, coverPath)
-	return checkURL(fullCoverURL)
+	testCoverURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, coverPath)
+	if checkURL(testCoverURL) == "" {
+		return ""
+	}
+	return fullCoverURL
 }
 
 // Helper function to get the MusicURL
@@ -316,22 +321,46 @@ func getMusicURL(artistName, songName, albumName string) MusicURL {
 // Helper function to get the Lyric URL
 func getLyricURL(artistName, songName, albumName string) Lyric {
 	homeURL := os.Getenv("HOME_URL")
+	PORT := os.Getenv("PORT")
 	mrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.mrc", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
 	lrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.lrc", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
 	mrcURL := fmt.Sprintf("%s%s", homeURL, mrcPath)
 	lrcURL := fmt.Sprintf("%s%s", homeURL, lrcPath)
+	testMrcURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, mrcPath)
+	testLrcURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, lrcPath)
+	if checkURL(testMrcURL) == "" && checkURL(testLrcURL) != "" {
+		return Lyric{
+			Mrc: "",
+			Lrc: lrcURL,
+		}
+	} else if checkURL(testMrcURL) != "" && checkURL(testLrcURL) == "" {
+		return Lyric{
+			Mrc: mrcURL,
+			Lrc: "",
+		}
+	} else if checkURL(testMrcURL) == "" && checkURL(testLrcURL) == "" {
+		return Lyric{
+			Mrc: "",
+			Lrc: "",
+		}
+	}
 	return Lyric{
-		Mrc: checkURL(mrcURL),
-		Lrc: checkURL(lrcURL),
+		Mrc: mrcURL,
+		Lrc: lrcURL,
 	}
 }
 
 // Helper function to get the music file URL based on quality and format
 func getMusicFileURL(artistName, songName, albumName, quality, format string) string {
 	homeURL := os.Getenv("HOME_URL")
+	PORT := os.Getenv("PORT")
 	musicPath := fmt.Sprintf("/file/%s-%s@%s/%s%s", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName), url.PathEscape(quality), url.PathEscape(format))
 	fullMusicURL := fmt.Sprintf("%s%s", homeURL, musicPath)
-	return checkURL(fullMusicURL)
+	testMusicURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, musicPath)
+	if checkURL(testMusicURL) == "" {
+		return ""
+	}
+	return fullMusicURL
 }
 
 // Read the metadata.json file and parse it into a metadata structure
