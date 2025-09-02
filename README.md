@@ -36,3 +36,13 @@ cp .env.example .env # 根据你的环境修改 .env 文件
 mkdir music-uploads # 创建音乐上载目录
 go run .
 ```
+
+## Star History
+
+<a href="https://star-history.com/#IntelligentlyEverything/MeowMusicServer&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=IntelligentlyEverything/MeowMusicServer&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=IntelligentlyEverything/MeowMusicServer&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=IntelligentlyEverything/MeowMusicServer&type=Date" />
+ </picture>
+</a>
