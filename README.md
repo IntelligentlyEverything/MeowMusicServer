@@ -19,6 +19,16 @@ mkdir music-uploads # create music upload directory
 go run .
 ```
 
+## Star History
+
+<a href="https://star-history.com/#IntelligentlyEverything/MeowMusicServer&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=IntelligentlyEverything/MeowMusicServer&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=IntelligentlyEverything/MeowMusicServer&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=IntelligentlyEverything/MeowMusicServer&type=Date" />
+ </picture>
+</a>
+
 # 喵波音律
 [![codecov](https://codecov.io/gh/MoeCinnamo/MeowMusicServer/graph/badge.svg?token=20ZLNOK34R)](https://codecov.io/gh/MoeCinnamo/MeowMusicServer)
 
