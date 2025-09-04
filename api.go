@@ -480,7 +480,7 @@ func getSongArray(metadata *Metadata) []OtherSong {
 	return metadata.Other
 }
 
-type YuafengAPIMGResponse struct {
+type YuafengAPIFreeResponse struct {
 	Code int `json:"code"`
 	Data []struct {
 		Num       int    `json:"num"`
@@ -491,7 +491,7 @@ type YuafengAPIMGResponse struct {
 	} `json:"data"`
 }
 
-type YuafengAPIMGSingleResponse struct {
+type YuafengAPIFreeSingleResponse struct {
 	Code int `json:"code"`
 	Data struct {
 		Song      string `json:"song"`
@@ -519,7 +519,19 @@ type YuafengAPIQSResponse struct {
 func YuafengAPIResponseHandler(key string, msg string, sources string) []OtherSong {
 	var songs []OtherSong
 	//if key == "" {
-	url := "https://api.yuafeng.cn/API/ly/mgmusic.php"
+	var url string
+	switch sources {
+	case "migu":
+		url = "https://api.yuafeng.cn/API/ly/mgmusic.php"
+	case "kuwo":
+		url = "https://api.yuafeng.cn/API/ly/kwmusic.php"
+	case "baidu":
+		url = "https://api.yuafeng.cn/API/ly/bdmusic.php"
+	case "netease":
+		url = "https://api.yuafeng.cn/API/ly/wymusic.php"
+	default:
+		return []OtherSong{}
+	}
 	resp, err := http.Get(url + "?msg=" + msg)
 	if err != nil {
 		fmt.Println("Error fetching the data form Yuafeng free API:", err)
@@ -529,7 +541,7 @@ func YuafengAPIResponseHandler(key string, msg string, sources string) []OtherSo
 	if err != nil {
 		fmt.Println("Error reading the response body from Yuafeng free API:", err)
 	}
-	var response YuafengAPIMGResponse
+	var response YuafengAPIFreeResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		fmt.Println("Error unmarshalling the data from Yuafeng free API:", err)
@@ -553,7 +565,7 @@ func YuafengAPIResponseHandler(key string, msg string, sources string) []OtherSo
 			fmt.Println("Error reading the response body from Yuafeng free API:", err)
 			continue
 		}
-		var singleResponse YuafengAPIMGSingleResponse
+		var singleResponse YuafengAPIFreeSingleResponse
 		err = json.Unmarshal(body, &singleResponse)
 		if err != nil {
 			fmt.Println("Error unmarshalling the data form Yuafeng free API:", err)
