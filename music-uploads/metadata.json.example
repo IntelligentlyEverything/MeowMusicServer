@@ -2,11 +2,15 @@
     "api": [
         {
             "api_url": "",
-            "api_type": ""
+            "api_type": "",
+            "api_key": "",
+            "sources": ""
         },
         {
             "api_url": "",
-            "api_type": ""
+            "api_type": "",
+            "api_key": "",
+            "sources": ""
         }
     ],
     "other": [
@@ -25,7 +29,8 @@
             },
             "lyric_url": {
                 "mrc": "",
-                "lrc": ""
+                "lrc": "",
+                "txt": ""
             }
         }
     ]

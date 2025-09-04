@@ -3,21 +3,24 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Api Response.
 type Response struct {
-	Code int         `json:"code"`
-	Msg  string      `json:"msg"`
-	Data interface{} `json:"data"`
-	Tips string      `json:"tips"`
-	Ip   string      `json:"ip"`
+	Code  int         `json:"code"`
+	Msg   string      `json:"msg"`
+	Data  interface{} `json:"data"`
+	Tips  string      `json:"tips"`
+	Ip    string      `json:"ip"`
+	Cache string      `json:"cache"`
 }
 
 // API Song response.
@@ -43,6 +46,7 @@ type MusicURL struct {
 type Lyric struct {
 	Mrc string `json:"mrc"`
 	Lrc string `json:"lrc"`
+	Txt string `json:"txt"`
 }
 
 // apiHandler is the handler function for API requests.
@@ -61,11 +65,12 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 
 	if msg == "" {
 		response := Response{
-			Code: 1,
-			Msg:  "API Operation failed: 'msg' parameter is required.",
-			Data: []interface{}{},
-			Tips: "Provide by " + os.Getenv("WEBSITE_NAME"),
-			Ip:   ip,
+			Code:  1,
+			Msg:   "API Operation failed: 'msg' parameter is required.",
+			Data:  []interface{}{},
+			Tips:  "Provide by " + os.Getenv("WEBSITE_NAME"),
+			Ip:    ip,
+			Cache: "no-cache",
 		}
 		json.NewEncoder(w).Encode(response)
 		return
@@ -77,19 +82,91 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 		num, err = strconv.Atoi(numStr)
 		if err != nil {
 			response := Response{
-				Code: 2,
-				Msg:  "Invalid 'num' parameter provided.",
-				Data: []interface{}{},
-				Tips: "Provide by " + os.Getenv("WEBSITE_NAME"),
-				Ip:   ip,
+				Code:  2,
+				Msg:   "Invalid 'num' parameter provided.",
+				Data:  []interface{}{},
+				Tips:  "Provide by " + os.Getenv("WEBSITE_NAME"),
+				Ip:    ip,
+				Cache: "no-cache",
 			}
 			json.NewEncoder(w).Encode(response)
 			return
 		}
 	}
 
-	// Get songs based on msg and num
-	songs := apiSongHandlerOnMetadata(msg, num)
+	// Construct a complete file path for cache file
+	cacheFilePath := filepath.Join("./cache", msg+".json")
+
+	// Check if cache file exists and is not expired
+	if isCacheValid(cacheFilePath) {
+		// Read from cache file
+		songs, timestamp := readCacheFile(cacheFilePath)
+
+		// Filter songs based on num if provided
+		var filteredSongs []Song
+		if numStr != "" {
+			for _, song := range songs {
+				if song.Num == num {
+					filteredSongs = append(filteredSongs, song)
+				}
+			}
+			fmt.Println(filteredSongs)
+		} else {
+			filteredSongs = songs
+		}
+
+		// If no songs found, return an empty array
+		if len(filteredSongs) == 0 {
+			response := Response{
+				Code:  3,
+				Msg:   "No songs found for the given query.",
+				Data:  []interface{}{},
+				Tips:  "Provide by " + os.Getenv("WEBSITE_NAME"),
+				Ip:    ip,
+				Cache: timestamp,
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		// Prepare the response with cache timestamp
+		response := Response{
+			Code:  0,
+			Msg:   "API Operation successful.",
+			Data:  filteredSongs,
+			Tips:  "Provide by " + os.Getenv("WEBSITE_NAME"),
+			Ip:    ip,
+			Cache: timestamp,
+		}
+		// Encode and send the response
+		json.NewEncoder(w).Encode(response)
+
+		// If num is not provided, update cache in the background
+		if numStr == "" {
+			go func() {
+				newSongs := apiSongHandlerOnMetadata(msg)
+				newTimestamp := time.Now().Format(time.RFC3339)
+				writeCacheFile(cacheFilePath, newSongs, newTimestamp)
+			}()
+		}
+		return
+	}
+
+	// If cache file does not exist or is expired, get songs based on msg
+	songs := apiSongHandlerOnMetadata(msg)
+
+	// Filter songs based on num if provided
+	var filteredSongs []Song
+	if numStr != "" {
+		for _, song := range songs {
+			if song.Num == num {
+				filteredSongs = append(filteredSongs, song)
+			}
+		}
+		fmt.Println(filteredSongs)
+	} else {
+		filteredSongs = songs
+	}
 
 	// If no songs found, return an empty array
 	if len(songs) == 0 {
@@ -106,12 +183,16 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare the response
 	response := Response{
-		Code: 0,
-		Msg:  "API Operation successful.",
-		Data: songs,
-		Tips: "Provide by " + os.Getenv("WEBSITE_NAME"),
-		Ip:   ip,
+		Code:  0,
+		Msg:   "API Operation successful.",
+		Data:  filteredSongs,
+		Tips:  "Provide by " + os.Getenv("WEBSITE_NAME"),
+		Ip:    ip,
+		Cache: time.Now().Format(time.RFC3339),
 	}
+
+	// Write to cache file
+	writeCacheFile(cacheFilePath, songs, response.Cache)
 
 	// Encode and send the response
 	json.NewEncoder(w).Encode(response)
@@ -120,6 +201,8 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 type API struct {
 	APIURL  string `json:"api_url"`
 	APIType string `json:"api_type"`
+	APIKey  string `json:"api_key"`
+	Sources string `json:"sources"`
 }
 
 type OtherSong struct {
@@ -137,7 +220,7 @@ type Metadata struct {
 }
 
 // API Song handler.
-func apiSongHandlerOnMetadata(msg string, num int) []Song {
+func apiSongHandlerOnMetadata(msg string) []Song {
 	// Construct a complete file path for metadata.json
 	metadataFilePath := filepath.Join("./music-uploads", "metadata.json")
 
@@ -173,9 +256,7 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 
 		// Check if the song matches the msg and num
 		if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
-			if num == 0 || song.Num == num {
-				filteredSongs = append(filteredSongs, song)
-			}
+			filteredSongs = append(filteredSongs, song)
 		}
 	}
 
@@ -194,14 +275,12 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 
 		// Check if the song matches the msg and num
 		if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
-			if num == 0 || song.Num == num {
-				filteredSongs = append(filteredSongs, song)
-			}
+			filteredSongs = append(filteredSongs, song)
 		}
 	}
 
-	// Handling API requests from the same system
 	for _, api := range metadata.API {
+		// Handling API requests from the same system
 		if api.APIType == "" {
 			// Same system API request
 			resp, err := http.Get(api.APIURL)
@@ -228,11 +307,27 @@ func apiSongHandlerOnMetadata(msg string, num int) []Song {
 			// Append internal songs to filteredSongs
 			filteredSongs = append(filteredSongs, internalSongs...)
 		}
-	}
 
-	// If num is specified but no song matches, return an empty array
-	if num != 0 && len(filteredSongs) == 0 {
-		return []Song{}
+		// Handling API requests from 枫雨API
+		if api.APIType == "api.yuanfeng.cn" {
+			internalSongs := YuafengAPIResponseHandler(api.APIKey, msg, api.Sources)
+			for _, internalSong := range internalSongs {
+				songCounter++
+				song := Song{
+					Num:      songCounter,
+					Song:     internalSong.SongName,
+					Singer:   internalSong.Singer,
+					Album:    internalSong.Album,
+					Cover:    internalSong.Cover,
+					MusicURL: internalSong.MusicURL,
+					Lyric:    internalSong.LyricURL,
+				}
+				// Check if the song matches the msg and num
+				if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
+					filteredSongs = append(filteredSongs, song)
+				}
+			}
+		}
 	}
 
 	// Return the filtered song array
@@ -324,29 +419,20 @@ func getLyricURL(artistName, songName, albumName string) Lyric {
 	PORT := os.Getenv("PORT")
 	mrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.mrc", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
 	lrcPath := fmt.Sprintf("/file/%s-%s@%s/lyric.lrc", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
+	txtPath := fmt.Sprintf("/file/%s-%s@%s/lyric.txt", url.PathEscape(artistName), url.PathEscape(songName), url.PathEscape(albumName))
 	mrcURL := fmt.Sprintf("%s%s", homeURL, mrcPath)
 	lrcURL := fmt.Sprintf("%s%s", homeURL, lrcPath)
+	txtURL := fmt.Sprintf("%s%s", homeURL, txtPath)
 	testMrcURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, mrcPath)
 	testLrcURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, lrcPath)
-	if checkURL(testMrcURL) == "" && checkURL(testLrcURL) != "" {
-		return Lyric{
-			Mrc: "",
-			Lrc: lrcURL,
-		}
-	} else if checkURL(testMrcURL) != "" && checkURL(testLrcURL) == "" {
-		return Lyric{
-			Mrc: mrcURL,
-			Lrc: "",
-		}
-	} else if checkURL(testMrcURL) == "" && checkURL(testLrcURL) == "" {
-		return Lyric{
-			Mrc: "",
-			Lrc: "",
-		}
-	}
+	testTxtURL := fmt.Sprintf("%s:%s%s", "http://127.0.0.1", PORT, txtPath)
+	mrcAvailable := checkURL(testMrcURL) != ""
+	lrcAvailable := checkURL(testLrcURL) != ""
+	txtAvailable := checkURL(testTxtURL) != ""
 	return Lyric{
-		Mrc: mrcURL,
-		Lrc: lrcURL,
+		Mrc: conditionalURL(mrcAvailable, mrcURL),
+		Lrc: conditionalURL(lrcAvailable, lrcURL),
+		Txt: conditionalURL(txtAvailable, txtURL),
 	}
 }
 
@@ -361,6 +447,14 @@ func getMusicFileURL(artistName, songName, albumName, quality, format string) st
 		return ""
 	}
 	return fullMusicURL
+}
+
+// Helper function to return URL if available, otherwise return empty string
+func conditionalURL(isAvailable bool, url string) string {
+	if isAvailable {
+		return url
+	}
+	return ""
 }
 
 // Read the metadata.json file and parse it into a metadata structure
@@ -386,6 +480,108 @@ func getSongArray(metadata *Metadata) []OtherSong {
 	return metadata.Other
 }
 
+type YuafengAPIMGResponse struct {
+	Code int `json:"code"`
+	Data []struct {
+		Num       int    `json:"num"`
+		Song      string `json:"song"`
+		Singer    string `json:"singer"`
+		Cover     string `json:"cover"`
+		AlbumName string `json:"album_name"`
+	} `json:"data"`
+}
+
+type YuafengAPIMGSingleResponse struct {
+	Code int `json:"code"`
+	Data struct {
+		Song      string `json:"song"`
+		Singer    string `json:"singer"`
+		Cover     string `json:"cover"`
+		AlbumName string `json:"album_name"`
+		Music     string `json:"music"`
+		Lyric     string `json:"lyric"`
+	} `json:"data"`
+}
+
+type YuafengAPIQSResponse struct {
+	Code int `json:"code"`
+	Data []struct {
+		Song     string `json:"song"`
+		Singer   string `json:"singer"`
+		Cover    string `json:"cover"`
+		Audition string `json:"music_low"`
+		Standard string `json:"music_high"`
+		Lyric    string `json:"lyric"`
+	} `json:"data"`
+}
+
+// 枫雨API response handler.
+func YuafengAPIResponseHandler(key string, msg string, sources string) []OtherSong {
+	var songs []OtherSong
+	//if key == "" {
+	url := "https://api.yuafeng.cn/API/ly/mgmusic.php"
+	resp, err := http.Get(url + "?msg=" + msg)
+	if err != nil {
+		fmt.Println("Error fetching the data form Yuafeng free API:", err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading the response body from Yuafeng free API:", err)
+	}
+	var response YuafengAPIMGResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Println("Error unmarshalling the data from Yuafeng free API:", err)
+	}
+	maxNum := 0
+	for _, item := range response.Data {
+		if item.Num > maxNum {
+			maxNum = item.Num
+		}
+	}
+	for i := 1; i <= maxNum; i++ {
+		singleUrl := url + "?msg=" + msg + "&n=" + strconv.Itoa(i)
+		resp, err := http.Get(singleUrl)
+		if err != nil {
+			fmt.Println("Error fetching the data form Yuafeng free API:", err)
+			continue
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Println("Error reading the response body from Yuafeng free API:", err)
+			continue
+		}
+		var singleResponse YuafengAPIMGSingleResponse
+		err = json.Unmarshal(body, &singleResponse)
+		if err != nil {
+			fmt.Println("Error unmarshalling the data form Yuafeng free API:", err)
+			continue
+		}
+		var musicURL = MusicURL{
+			Standard: singleResponse.Data.Music,
+		}
+		song := OtherSong{
+			SongName: singleResponse.Data.Song,
+			Singer:   singleResponse.Data.Singer,
+			Album:    singleResponse.Data.AlbumName,
+			Cover:    singleResponse.Data.Cover,
+			MusicURL: musicURL,
+		}
+		songs = append(songs, song)
+	}
+	//} else {
+	//url := "https://api-v2.yuafeng.cn/API/"
+	//if sources == "qsmusic" {
+	//resp, err := http.Get(url + "?key=" + key + "&msg=" + msg)
+	//} else {
+	// No other resource support has been provided temporarily.
+	//return []OtherSong{}
+	//}
+	return songs
+}
+
 // Helper function to check if a URL is valid
 func checkURL(url string) string {
 	resp, err := http.Get(url)
@@ -399,6 +595,98 @@ func checkURL(url string) string {
 	}
 
 	return url
+}
+
+// Helper function to check if cache file is valid
+func isCacheValid(filePath string) bool {
+	// Check if file exists
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return false
+	}
+
+	// Read the cache file metadata
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		fmt.Println("Error reading cache file metadata: ", err)
+		return false
+	}
+
+	// Get the cache time from environment variable
+	var cacheTime int
+	if cacheTimeEnv := os.Getenv("API_CACHE_TIME"); cacheTimeEnv != "" {
+		cacheTime, err = strconv.Atoi(cacheTimeEnv)
+		if err != nil {
+			fmt.Println("Error converting API_CACHE_TIME to int: ", err)
+			return false
+		}
+	} else {
+		// Default cache time if not set
+		cacheTime = 1 // 1 hour
+	}
+
+	// Compare file modification time with current time
+	return time.Since(fileInfo.ModTime()).Hours() < float64(cacheTime)
+}
+
+// Helper function to read from cache file
+func readCacheFile(filePath string) ([]Song, string) {
+	var cacheFile struct {
+		Songs     []Song `json:"songs"`
+		Timestamp string `json:"timestamp"`
+	}
+
+	// Open the cache file
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Error opening cache file: ", err)
+		return []Song{}, ""
+	}
+	defer file.Close()
+
+	// Decode JSON response
+	err = json.NewDecoder(file).Decode(&cacheFile)
+	if err != nil {
+		fmt.Println("Error decoding cache file: ", err)
+		return []Song{}, ""
+	}
+
+	return cacheFile.Songs, cacheFile.Timestamp
+}
+
+// Helper function to write to cache file
+func writeCacheFile(filePath string, songs []Song, timestamp string) {
+	cacheFile := struct {
+		Songs     []Song `json:"songs"`
+		Timestamp string `json:"timestamp"`
+	}{
+		Songs:     songs,
+		Timestamp: timestamp,
+	}
+
+	// Create the cache directory if it does not exist
+	cacheDir := filepath.Dir(filePath)
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		err := os.MkdirAll(cacheDir, os.ModePerm)
+		if err != nil {
+			fmt.Println("Error creating cache directory: ", err)
+			return
+		}
+	}
+
+	// Create or update the cache file
+	file, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("Error creating cache file: ", err)
+		return
+	}
+	defer file.Close()
+
+	// Encode JSON response
+	err = json.NewEncoder(file).Encode(cacheFile)
+	if err != nil {
+		fmt.Println("Error encoding cache file: ", err)
+	}
 }
 
 // Processing requests.
