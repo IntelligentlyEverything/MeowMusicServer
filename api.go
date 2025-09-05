@@ -127,6 +127,13 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 				Cache: timestamp,
 			}
 			json.NewEncoder(w).Encode(response)
+			fmt.Println("Starting update cache file: ", cacheFilePath)
+			go func() {
+				newSongs := apiSongHandlerOnMetadata(msg)
+				newTimestamp := time.Now().Format(time.RFC3339)
+				writeCacheFile(cacheFilePath, newSongs, newTimestamp)
+				fmt.Println("Updated cache file: ", cacheFilePath)
+			}()
 			return
 		}
 
@@ -143,6 +150,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 		// If num is not provided, update cache in the background
 		if numStr == "" {
 			response.CacheUpdating = true
+			// Encode and send the response
 			json.NewEncoder(w).Encode(response)
 			fmt.Println("Starting update cache file: ", cacheFilePath)
 			go func() {
@@ -152,12 +160,11 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("Updated cache file: ", cacheFilePath)
 			}()
 		}
-		// Encode and send the response
-		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	// If cache file does not exist or is expired, get songs based on msg
+	fmt.Println(msg + " cache file not found or expired.")
 	var songs []Song
 	// get local songs
 	localSongs := getLocalSongs(msg)
@@ -188,6 +195,13 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 			CacheUpdating: numStr == "",
 		}
 		json.NewEncoder(w).Encode(response)
+		fmt.Println("Starting update cache file: ", cacheFilePath)
+		go func() {
+			newSongs := apiSongHandlerOnMetadata(msg)
+			newTimestamp := time.Now().Format(time.RFC3339)
+			writeCacheFile(cacheFilePath, newSongs, newTimestamp)
+			fmt.Println("Updated cache file: ", cacheFilePath)
+		}()
 		return
 	}
 
@@ -694,6 +708,7 @@ func isCacheValid(filePath string) bool {
 	// Check if file exists
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
+		fmt.Println("Cache file does not exist:", filePath)
 		return false
 	}
 

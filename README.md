@@ -7,7 +7,9 @@
 Your aggregated music API&private music player.
 
 ## Features
-- Music API: Search, download, and stream music from various sources.(Under construction)
+- Complete music API return function
+- Music API docking function, which can dock with APIs provided by the same system/Fengyu API.
+- Private music website: search, download, direct link playback. (Under development)
 
 ## Tutorial document
 Please refer to the [wiki](https://github.com/IntelligentlyEverything/MeowMusicServer/wiki).
@@ -28,7 +30,9 @@ Please refer to the [wiki](https://github.com/IntelligentlyEverything/MeowMusicS
 你自己的音乐API、私人的音乐服务器
 
 ## 功能
-- 音乐API：搜索、下载、直链播放。(开发中)
+- 完善的音乐API返回功能
+- 音乐API对接功能，可对接同系统/枫雨API提供的API。
+- 私人音乐网站：搜索、下载、直链播放。(开发中)
 
 ## 教程文档
 请查看本项目[维基](https://github.com/IntelligentlyEverything/MeowMusicServer/wiki)
