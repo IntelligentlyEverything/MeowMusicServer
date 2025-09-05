@@ -9,15 +9,8 @@ Your aggregated music API&private music player.
 ## Features
 - Music API: Search, download, and stream music from various sources.(Under construction)
 
-## Source code execution
-``` sh
-git clone https://github.com/xiaozhi-music/MeowMusicServer.git
-cd MeowMusicServer
-go mod tidy
-cp .env.example .env # modify .env file according to your environment
-mkdir music-uploads # create music upload directory
-go run .
-```
+## Tutorial document
+Please refer to the [wiki](https://github.com/IntelligentlyEverything/MeowMusicServer/wiki).
 
 ## Star History
 
@@ -37,15 +30,8 @@ go run .
 ## 功能
 - 音乐API：搜索、下载、直链播放。(开发中)
 
-## 通过代码运行
-``` sh
-git clone https://github.com/xiaozhi-music/MeowMusicServer.git
-cd MeowMusicServer
-go mod tidy
-cp .env.example .env # 根据你的环境修改 .env 文件
-mkdir music-uploads # 创建音乐上载目录
-go run .
-```
+## 教程文档
+请查看本项目[维基](https://github.com/IntelligentlyEverything/MeowMusicServer/wiki)
 
 ## Star History
 
