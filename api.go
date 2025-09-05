@@ -15,12 +15,13 @@ import (
 
 // Api Response.
 type Response struct {
-	Code  int         `json:"code"`
-	Msg   string      `json:"msg"`
-	Data  interface{} `json:"data"`
-	Tips  string      `json:"tips"`
-	Ip    string      `json:"ip"`
-	Cache string      `json:"cache"`
+	Code          int         `json:"code"`
+	Msg           string      `json:"msg"`
+	Data          interface{} `json:"data"`
+	Tips          string      `json:"tips"`
+	Ip            string      `json:"ip"`
+	Cache         string      `json:"cache"`
+	CacheUpdating bool        `json:"cache_updating"`
 }
 
 // API Song response.
@@ -138,22 +139,29 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 			Ip:    ip,
 			Cache: timestamp,
 		}
-		// Encode and send the response
-		json.NewEncoder(w).Encode(response)
 
 		// If num is not provided, update cache in the background
 		if numStr == "" {
+			response.CacheUpdating = true
+			json.NewEncoder(w).Encode(response)
+			fmt.Println("Starting update cache file: ", cacheFilePath)
 			go func() {
 				newSongs := apiSongHandlerOnMetadata(msg)
 				newTimestamp := time.Now().Format(time.RFC3339)
 				writeCacheFile(cacheFilePath, newSongs, newTimestamp)
+				fmt.Println("Updated cache file: ", cacheFilePath)
 			}()
 		}
+		// Encode and send the response
+		json.NewEncoder(w).Encode(response)
 		return
 	}
 
 	// If cache file does not exist or is expired, get songs based on msg
-	songs := apiSongHandlerOnMetadata(msg)
+	var songs []Song
+	// get local songs
+	localSongs := getLocalSongs(msg)
+	songs = append(songs, localSongs...)
 
 	// Filter songs based on num if provided
 	var filteredSongs []Song
@@ -171,11 +179,13 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	// If no songs found, return an empty array
 	if len(songs) == 0 {
 		response := Response{
-			Code: 3,
-			Msg:  "No songs found for the given query.",
-			Data: []interface{}{},
-			Tips: "Provide by " + os.Getenv("WEBSITE_NAME"),
-			Ip:   ip,
+			Code:          3,
+			Msg:           "No songs found for the given query.",
+			Data:          []interface{}{},
+			Tips:          "Provide by " + os.Getenv("WEBSITE_NAME"),
+			Ip:            ip,
+			Cache:         "no-cache",
+			CacheUpdating: numStr == "",
 		}
 		json.NewEncoder(w).Encode(response)
 		return
@@ -183,19 +193,25 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare the response
 	response := Response{
-		Code:  0,
-		Msg:   "API Operation successful.",
-		Data:  filteredSongs,
-		Tips:  "Provide by " + os.Getenv("WEBSITE_NAME"),
-		Ip:    ip,
-		Cache: time.Now().Format(time.RFC3339),
+		Code:          0,
+		Msg:           "API Operation successful.",
+		Data:          filteredSongs,
+		Tips:          "Provide by " + os.Getenv("WEBSITE_NAME"),
+		Ip:            ip,
+		Cache:         "no-cache",
+		CacheUpdating: numStr == "",
 	}
 
-	// Write to cache file
-	writeCacheFile(cacheFilePath, songs, response.Cache)
-
-	// Encode and send the response
+	// Then get songs from external APIs in the background
+	response.CacheUpdating = true
 	json.NewEncoder(w).Encode(response)
+	fmt.Println("Starting update cache file: ", cacheFilePath)
+	go func() {
+		newSongs := apiSongHandlerOnMetadata(msg)
+		newTimestamp := time.Now().Format(time.RFC3339)
+		writeCacheFile(cacheFilePath, newSongs, newTimestamp)
+		fmt.Println("Updated cache file: ", cacheFilePath)
+	}()
 }
 
 type API struct {
@@ -217,6 +233,70 @@ type OtherSong struct {
 type Metadata struct {
 	API   []API       `json:"api"`
 	Other []OtherSong `json:"other"`
+}
+
+// Local Song handler.
+func getLocalSongs(msg string) []Song {
+	// Construct a complete file path for metadata.json
+	metadataFilePath := filepath.Join("./music-uploads", "metadata.json")
+
+	// Read the metadata file
+	metadata, err := readMetadataFile(metadataFilePath)
+	if err != nil {
+		fmt.Println("Error reading metadata file: ", err)
+		return []Song{}
+	}
+
+	// Get the song array from metadata
+	otherSongs := getSongArray(metadata)
+
+	// Scan the music-uploads directory for artist-song folders
+	artistSongFolders := scanArtistSongFolders("./music-uploads")
+
+	// Initialize a counter for songs
+	songCounter := 0
+	var filteredSongs []Song
+
+	// Convert artist-song folders to Song
+	for _, artistSongFolder := range artistSongFolders {
+		songCounter++
+		song := Song{
+			Num:      songCounter,
+			Song:     artistSongFolder.songName,
+			Singer:   artistSongFolder.artistName,
+			Album:    artistSongFolder.albumName,
+			Cover:    getCoverURL(artistSongFolder.artistName, artistSongFolder.songName, artistSongFolder.albumName),
+			MusicURL: getMusicURL(artistSongFolder.artistName, artistSongFolder.songName, artistSongFolder.albumName),
+			Lyric:    getLyricURL(artistSongFolder.artistName, artistSongFolder.songName, artistSongFolder.albumName),
+		}
+
+		// Check if the song matches the msg and num
+		if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
+			filteredSongs = append(filteredSongs, song)
+		}
+	}
+
+	// Convert OtherSong to Song
+	for _, otherSong := range otherSongs {
+		songCounter++
+		song := Song{
+			Num:      songCounter,
+			Song:     otherSong.SongName,
+			Singer:   otherSong.Singer,
+			Album:    otherSong.Album,
+			Cover:    otherSong.Cover,
+			MusicURL: otherSong.MusicURL,
+			Lyric:    otherSong.LyricURL,
+		}
+
+		// Check if the song matches the msg and num
+		if strings.Contains(song.Song, msg) || strings.Contains(song.Singer, msg) || strings.Contains(song.Album, msg) {
+			filteredSongs = append(filteredSongs, song)
+		}
+	}
+
+	// Return the filtered song array
+	return filteredSongs
 }
 
 // API Song handler.
@@ -518,72 +598,72 @@ type YuafengAPIQSResponse struct {
 // 枫雨API response handler.
 func YuafengAPIResponseHandler(key string, msg string, sources string) []OtherSong {
 	var songs []OtherSong
-	//if key == "" {
-	var url string
-	switch sources {
-	case "migu":
-		url = "https://api.yuafeng.cn/API/ly/mgmusic.php"
-	case "kuwo":
-		url = "https://api.yuafeng.cn/API/ly/kwmusic.php"
-	case "baidu":
-		url = "https://api.yuafeng.cn/API/ly/bdmusic.php"
-	case "netease":
-		url = "https://api.yuafeng.cn/API/ly/wymusic.php"
-	default:
-		return []OtherSong{}
-	}
-	resp, err := http.Get(url + "?msg=" + msg)
-	if err != nil {
-		fmt.Println("Error fetching the data form Yuafeng free API:", err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading the response body from Yuafeng free API:", err)
-	}
-	var response YuafengAPIFreeResponse
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		fmt.Println("Error unmarshalling the data from Yuafeng free API:", err)
-	}
-	maxNum := 0
-	for _, item := range response.Data {
-		if item.Num > maxNum {
-			maxNum = item.Num
+	if key == "" {
+		var url string
+		switch sources {
+		case "kuwo":
+			url = "https://api.yuafeng.cn/API/ly/kwmusic.php"
+		case "netease":
+			url = "https://api.yuafeng.cn/API/ly/wymusic.php"
+		case "migu":
+			url = "https://api.yuafeng.cn/API/ly/mgmusic.php"
+		case "baidu":
+			url = "https://api.yuafeng.cn/API/ly/bdmusic.php"
+		default:
+			return []OtherSong{}
 		}
-	}
-	for i := 1; i <= maxNum; i++ {
-		singleUrl := url + "?msg=" + msg + "&n=" + strconv.Itoa(i)
-		resp, err := http.Get(singleUrl)
+		resp, err := http.Get(url + "?msg=" + msg)
 		if err != nil {
 			fmt.Println("Error fetching the data form Yuafeng free API:", err)
-			continue
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			fmt.Println("Error reading the response body from Yuafeng free API:", err)
-			continue
 		}
-		var singleResponse YuafengAPIFreeSingleResponse
-		err = json.Unmarshal(body, &singleResponse)
+		var response YuafengAPIFreeResponse
+		err = json.Unmarshal(body, &response)
 		if err != nil {
-			fmt.Println("Error unmarshalling the data form Yuafeng free API:", err)
-			continue
+			fmt.Println("Error unmarshalling the data from Yuafeng free API:", err)
 		}
-		var musicURL = MusicURL{
-			Standard: singleResponse.Data.Music,
+		maxNum := 0
+		for _, item := range response.Data {
+			if item.Num > maxNum {
+				maxNum = item.Num
+			}
 		}
-		song := OtherSong{
-			SongName: singleResponse.Data.Song,
-			Singer:   singleResponse.Data.Singer,
-			Album:    singleResponse.Data.AlbumName,
-			Cover:    singleResponse.Data.Cover,
-			MusicURL: musicURL,
+		for i := 1; i <= maxNum; i++ {
+			singleUrl := url + "?msg=" + msg + "&n=" + strconv.Itoa(i)
+			resp, err := http.Get(singleUrl)
+			if err != nil {
+				fmt.Println("Error fetching the data form Yuafeng free API:", err)
+				continue
+			}
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("Error reading the response body from Yuafeng free API:", err)
+				continue
+			}
+			var singleResponse YuafengAPIFreeSingleResponse
+			err = json.Unmarshal(body, &singleResponse)
+			if err != nil {
+				fmt.Println("Error unmarshalling the data form Yuafeng free API:", err)
+				continue
+			}
+			var musicURL = MusicURL{
+				Standard: singleResponse.Data.Music,
+			}
+			song := OtherSong{
+				SongName: singleResponse.Data.Song,
+				Singer:   singleResponse.Data.Singer,
+				Album:    singleResponse.Data.AlbumName,
+				Cover:    singleResponse.Data.Cover,
+				MusicURL: musicURL,
+			}
+			songs = append(songs, song)
 		}
-		songs = append(songs, song)
-	}
-	//} else {
+	} //else {
 	//url := "https://api-v2.yuafeng.cn/API/"
 	//if sources == "qsmusic" {
 	//resp, err := http.Get(url + "?key=" + key + "&msg=" + msg)
