@@ -99,6 +99,12 @@ func fileHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 	case ".webp":
 		w.Header().Set("Content-Type", "image/webp")
+	case ".txt":
+		w.Header().Set("Content-Type", "text/plain")
+	case ".lrc":
+		w.Header().Set("Content-Type", "text/plain")
+	case ".mrc":
+		w.Header().Set("Content-Type", "text/plain")
 	case ".json":
 		if filePath == "metadata.json" {
 			NotFoundHandler(w, r)

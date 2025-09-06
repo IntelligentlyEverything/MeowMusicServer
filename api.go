@@ -59,7 +59,6 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	msg := queryParams.Get("msg")
 	singer := queryParams.Get("singer")
 	numStr := queryParams.Get("num")
-	//embedded := queryParams.Get("embedded")
 
 	ip, err := IPhandler(r)
 	if err != nil {
@@ -795,7 +794,7 @@ func deleteExpiredCacheFiles(cacheDir string, cacheTime int) {
 
 	for _, file := range files {
 		filePath := filepath.Join(cacheDir, file.Name())
-		if file.IsDir() {
+		if file.IsDir() || file.Name() == "embedded.json" {
 			continue
 		}
 
